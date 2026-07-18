@@ -7,7 +7,7 @@ A local Docker-based runner that executes [TradingAgents-Funds](https://github.c
 1. You edit `config.py` to set the symbols and analysis date.
 2. `scripts/run.sh` builds the Docker image and starts the container.
 3. Inside the container, the runner calls `TradingAgentsGraph` for each symbol in order.
-4. Each completed report (`complete_report.md`) is rendered to PDF via WeasyPrint and uploaded to S3 at the path `{YYYY-MM-DD}/{SYMBOL}/report.pdf`.
+4. Each completed report (`complete_report.md`) is rendered to PDF via WeasyPrint and uploaded to S3 at the path `reports/{YYYY-MM-DD}/{buy|hold|sell}/{SYMBOL}/final_report.pdf`. The subfolder is derived from the Portfolio Manager's 5-tier rating: `Buy`/`Overweight` → `buy`, `Hold` → `hold`, `Underweight`/`Sell` → `sell`.
 5. Reports are also written to a local `reports/` directory via a volume mount.
 
 ## Prerequisites
@@ -31,10 +31,14 @@ runner/
   uploaders/
     base.py                # BaseUploader ABC (adapter interface for future sinks)
     s3.py                  # AWS S3 implementation
+.github/
+  workflows/
+    deploy-terraform.yml   # Plan on PR, apply on push to main
 scripts/
   run.sh                   # docker build + docker run convenience wrapper
 terraform/
   bootstrap/main.tf        # Run once: creates remote state bucket + DynamoDB lock
+  backend.tf               # Remote state config (bucket/table supplied at init time)
   main.tf                  # S3 reports bucket (public-read)
   variables.tf
   outputs.tf
@@ -70,7 +74,11 @@ terraform apply \
   -var="aws_account_id=<YOUR_ACCOUNT_ID>"
 ```
 
-Note the output value of `reports_bucket_name` — you will need it in the next step.
+Note the output values — you will need them in subsequent steps:
+
+- `reports_bucket_name` → set as `AWS_S3_REPORTS_BUCKET_NAME` in `.env`
+- `github_actions_access_key_id` → set as GitHub secret `AWS_ACCESS_KEY_ID`
+- `github_actions_secret_access_key` → set as GitHub secret `AWS_SECRET_ACCESS_KEY` (retrieve with `terraform output -raw github_actions_secret_access_key`)
 
 To use a different AWS region, pass `-var="aws_region=us-east-1"` to both `terraform apply` commands. The default is `eu-west-2`.
 
@@ -123,18 +131,18 @@ This builds the Docker image and starts the container. The first build takes a f
 ./scripts/run.sh --no-build
 ```
 
-Reports are written locally to `reports/{YYYY-MM-DD}/{SYMBOL}/` and uploaded to S3 at the same key path.
+Reports are written locally to `reports/{YYYY-MM-DD}/{SYMBOL}/` and uploaded to S3 at `reports/{YYYY-MM-DD}/{buy|hold|sell}/{SYMBOL}/final_report.pdf`.
 
 To run the equivalent `docker` commands directly:
 
 ```bash
-docker build -t tafr-runner .
+docker build -t jyjulianwong-tradingagents-funds-runner .
 
 docker run --rm \
   --env-file .env \
   -v "$(pwd)/config.py:/app/config.py:ro" \
   -v "$(pwd)/reports:/app/reports" \
-  tafr-runner
+  jyjulianwong-tradingagents-funds-runner
 ```
 
 ---

@@ -42,6 +42,13 @@ def _load_run_config() -> ModuleType:
     return mod
 
 
+def _signal_to_folder(signal: str) -> str:
+    """Map the 5-tier PM rating to one of three upload folder names."""
+    return {"Buy": "buy", "Overweight": "buy", "Hold": "hold", "Underweight": "sell", "Sell": "sell"}.get(
+        signal, "hold"
+    )
+
+
 def _build_uploader() -> BaseUploader:
     bucket = os.environ.get("AWS_S3_REPORTS_BUCKET_NAME")
     if not bucket:
@@ -76,11 +83,11 @@ def _run_symbol(
         complete_report_path = ta.save_reports(final_state, symbol, save_path=report_dir)
         logger.info("Markdown report saved to %s", complete_report_path)
 
-        pdf_path = report_dir / "report.pdf"
+        pdf_path = report_dir / "final_report.pdf"
         md_to_pdf(complete_report_path, pdf_path)
         logger.info("PDF rendered at %s", pdf_path)
 
-        remote_key = f"{analysis_date}/{symbol}/report.pdf"
+        remote_key = f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}/final_report.pdf"
         url = uploader.upload(pdf_path, remote_key)
         logger.info("Uploaded to %s", url)
         return True

@@ -1,33 +1,47 @@
-# Secrets — never commit
-.env
-
-# Generated reports (potentially large and contain financial analysis)
-reports/
-
 # Python
 __pycache__/
 *.py[cod]
-.venv/
 *.egg-info/
-dist/
-build/
+**/dist/
+**/build/
+**/.venv/
+**/venv/
+**/env/
 
-# Terraform state (bootstrap uses local state intentionally)
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
-terraform/tfplan
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
 
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Ruff
-.ruff_cache/
-
-# IDEs
-AGENTS.md
-CLAUDE.md
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # Project
+AGENTS.md
+CLAUDE.md
 TODO.md
+reports/
+
+# Lambda build artefacts
+lambda/.build/

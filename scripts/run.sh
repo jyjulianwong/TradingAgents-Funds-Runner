@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-IMAGE_NAME="tafr-runner"
+IMAGE_NAME="jyjulianwong-tradingagents-funds-runner"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
