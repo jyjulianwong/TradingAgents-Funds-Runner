@@ -80,6 +80,10 @@ Note the output values — you will need them in subsequent steps:
 - `github_actions_access_key_id` → set as GitHub secret `AWS_ACCESS_KEY_ID`
 - `github_actions_secret_access_key` → set as GitHub secret `AWS_SECRET_ACCESS_KEY` (retrieve with `terraform output -raw github_actions_secret_access_key`)
 
+Also, set the following GitHub secret manually (**Settings → Secrets and variables → Actions**):
+
+- `AWS_ACCOUNT_ID` → your 12-digit AWS account ID (`aws sts get-caller-identity --query Account --output text`)
+
 To use a different AWS region, pass `-var="aws_region=us-east-1"` to both `terraform apply` commands. The default is `eu-west-2`.
 
 ### 3. Configure secrets
@@ -190,7 +194,7 @@ The upload step uses an adapter pattern. To add a destination (e.g. Google Cloud
 
 | Command | Purpose |
 |---|---|
-| `terraform -chdir=terraform/bootstrap init && apply` | One-time: create remote state storage |
+| `terraform -chdir=terraform/bootstrap init` then `terraform -chdir=terraform/bootstrap apply` | One-time: create remote state storage |
 | `terraform -chdir=terraform init` | Initialise the main stack (pass `-backend-config` args) |
 | `terraform -chdir=terraform plan -var="aws_account_id=<ID>"` | Preview changes |
 | `terraform -chdir=terraform apply -var="aws_account_id=<ID>"` | Apply changes |
