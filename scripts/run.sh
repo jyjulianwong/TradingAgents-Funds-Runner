@@ -6,7 +6,7 @@
 #   - .env file with API keys and AWS credentials (see .env.example)
 #   - config.py edited with the symbols you want to analyse
 
-set -euo pipefail
+set -uo pipefail
 
 IMAGE_NAME="jyjulianwong-tradingagents-funds-runner"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
