@@ -9,6 +9,7 @@ to the configured storage backend.
 import importlib.util
 import logging
 import os
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -40,6 +41,11 @@ def _load_run_config() -> ModuleType:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _slugify(name: str) -> str:
+    """Lowercase, alphanumeric-only, hyphen-separated form of ``name`` for use in S3 keys."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def _signal_to_folder(signal: str) -> str:
@@ -88,7 +94,9 @@ def _run_symbol(
         md_to_pdf(complete_report_path, pdf_path)
         logger.info("PDF rendered at %s", pdf_path)
 
-        remote_key = f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}-{symbol_name}/final_report.pdf"
+        remote_key = (
+            f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}-{_slugify(symbol_name)}/final_report.pdf"
+        )
         url = uploader.upload(pdf_path, remote_key)
         logger.info("Uploaded to %s", url)
         return True
