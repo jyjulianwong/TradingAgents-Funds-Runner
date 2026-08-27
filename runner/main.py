@@ -60,7 +60,7 @@ def _build_uploader() -> BaseUploader:
 
 def _run_symbol(
     symbol: str,
-    fund_name: str,
+    symbol_name: str,
     analysis_date: str,
     analysts: list[str],
     uploader: BaseUploader,
@@ -88,7 +88,7 @@ def _run_symbol(
         md_to_pdf(complete_report_path, pdf_path)
         logger.info("PDF rendered at %s", pdf_path)
 
-        remote_key = f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}-{fund_name}/final_report.pdf"
+        remote_key = f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}-{symbol_name}/final_report.pdf"
         url = uploader.upload(pdf_path, remote_key)
         logger.info("Uploaded to %s", url)
         return True
@@ -114,8 +114,8 @@ def main() -> None:
     uploader = _build_uploader()
 
     results: dict[str, bool] = {}
-    for symbol, fund_name in symbols.items():
-        results[symbol] = _run_symbol(symbol, fund_name, analysis_date, analysts, uploader)
+    for symbol, symbol_name in symbols.items():
+        results[symbol] = _run_symbol(symbol, symbol_name, analysis_date, analysts, uploader)
 
     passed = [s for s, ok in results.items() if ok]
     failed = [s for s, ok in results.items() if not ok]
