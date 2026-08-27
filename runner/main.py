@@ -9,6 +9,7 @@ to the configured storage backend.
 import importlib.util
 import logging
 import os
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -42,6 +43,11 @@ def _load_run_config() -> ModuleType:
     return mod
 
 
+def _slugify(name: str) -> str:
+    """Lowercase, alphanumeric-only, hyphen-separated form of ``name`` for use in S3 keys."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
 def _signal_to_folder(signal: str) -> str:
     """Map the 5-tier PM rating to one of three upload folder names."""
     return {"Buy": "buy", "Overweight": "buy", "Hold": "hold", "Underweight": "sell", "Sell": "sell"}.get(
@@ -60,6 +66,7 @@ def _build_uploader() -> BaseUploader:
 
 def _run_symbol(
     symbol: str,
+    symbol_name: str,
     analysis_date: str,
     analysts: list[str],
     uploader: BaseUploader,
@@ -87,7 +94,9 @@ def _run_symbol(
         md_to_pdf(complete_report_path, pdf_path)
         logger.info("PDF rendered at %s", pdf_path)
 
-        remote_key = f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}/final_report.pdf"
+        remote_key = (
+            f"reports/{analysis_date}/{_signal_to_folder(signal)}/{symbol}-{_slugify(symbol_name)}/final_report.pdf"
+        )
         url = uploader.upload(pdf_path, remote_key)
         logger.info("Uploaded to %s", url)
         return True
@@ -100,21 +109,21 @@ def _run_symbol(
 def main() -> None:
     cfg = _load_run_config()
 
-    symbols: list[str] = cfg.SYMBOLS
+    symbols: dict[str, str] = cfg.SYMBOLS
     analysis_date: str = cfg.ANALYSIS_DATE or date.today().isoformat()
     analysts: list[str] = getattr(cfg, "ANALYSTS", ["market", "social", "news", "fundamentals"])
 
     if not symbols:
-        logger.error("SYMBOLS list in config.py is empty — nothing to do")
+        logger.error("SYMBOLS mapping in config.py is empty — nothing to do")
         sys.exit(1)
 
-    logger.info("Run config: date=%s, analysts=%s, symbols=%s", analysis_date, analysts, symbols)
+    logger.info("Run config: date=%s, analysts=%s, symbols=%s", analysis_date, analysts, list(symbols))
 
     uploader = _build_uploader()
 
     results: dict[str, bool] = {}
-    for symbol in symbols:
-        results[symbol] = _run_symbol(symbol, analysis_date, analysts, uploader)
+    for symbol, symbol_name in symbols.items():
+        results[symbol] = _run_symbol(symbol, symbol_name, analysis_date, analysts, uploader)
 
     passed = [s for s, ok in results.items() if ok]
     failed = [s for s, ok in results.items() if not ok]

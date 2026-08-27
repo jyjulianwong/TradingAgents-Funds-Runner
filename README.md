@@ -110,11 +110,11 @@ Open `.env` and fill in at minimum:
 Edit `config.py`:
 
 ```python
-SYMBOLS: list[str] = [
-    "AAPL",
-    "MSFT",
-    "IE00B4L5Y983",  # ISINs are also supported
-]
+SYMBOLS: dict[str, str] = {
+    "AAPL": "Apple Inc.",
+    "MSFT": "Microsoft Corp.",
+    "IE00B4L5Y983": "iShares Core MSCI World UCITS ETF",  # ISINs are also supported
+}
 
 ANALYSIS_DATE: str | None = None  # None = today; or "2026-07-18"
 
