@@ -2935,7 +2935,7 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.34.0" },
     { name = "markdown", specifier = ">=3.6" },
-    { name = "tradingagents", git = "https://github.com/jyjulianwong/TradingAgents-Funds.git?rev=5f00b0da051c8df7f20400e42d277619230ee827" },
+    { name = "tradingagents", git = "https://github.com/jyjulianwong/TradingAgents-Funds.git?rev=1adf5c9d861a77d69022345ffeed88a6bbedbd28" },
     { name = "weasyprint", specifier = ">=62.0" },
 ]
 
@@ -3050,7 +3050,7 @@ wheels = [
 [[package]]
 name = "tradingagents"
 version = "0.3.1"
-source = { git = "https://github.com/jyjulianwong/TradingAgents-Funds.git?rev=5f00b0da051c8df7f20400e42d277619230ee827#5f00b0da051c8df7f20400e42d277619230ee827" }
+source = { git = "https://github.com/jyjulianwong/TradingAgents-Funds.git?rev=1adf5c9d861a77d69022345ffeed88a6bbedbd28#1adf5c9d861a77d69022345ffeed88a6bbedbd28" }
 dependencies = [
     { name = "backtrader" },
     { name = "langchain-anthropic" },
