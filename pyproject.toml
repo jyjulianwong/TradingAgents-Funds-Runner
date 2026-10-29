@@ -10,7 +10,7 @@ dependencies = [
     "boto3>=1.34.0",
     "markdown>=3.6",
     # Pin TradingAgents-Funds to a specific commit; bump this SHA when upgrading.
-    "tradingagents @ git+https://github.com/jyjulianwong/TradingAgents-Funds.git@f597b9f2009d323d8046fcd51a2bc476ad1409db",
+    "tradingagents @ git+https://github.com/jyjulianwong/TradingAgents-Funds.git@e59cff52b4b0650b00ecbd46d4ab48bd97444df9",
     "weasyprint>=62.0",
 ]
 
