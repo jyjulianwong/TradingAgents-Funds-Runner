@@ -6,8 +6,9 @@ terraform {
       version = "~> 5.0"
     }
   }
-  # Intentionally local backend — this config is run once to create the
-  # remote state bucket and lock table used by all other Terraform configs.
+  # No backend block here: scripts/bootstrap.sh applies this with local state
+  # on the first run (the state bucket doesn't exist yet), then migrates the
+  # state into that bucket via a generated _backend.tf (gitignored).
 }
 
 variable "aws_region" {
@@ -19,6 +20,12 @@ variable "aws_region" {
 variable "aws_account_id" {
   description = "AWS account ID — Terraform will refuse to apply if active credentials resolve to a different account"
   type        = string
+}
+
+variable "github_repository" {
+  description = "owner/name of the GitHub repository whose Actions workflows may assume the CI role"
+  type        = string
+  default     = "jyjulianwong/TradingAgents-Funds-Runner"
 }
 
 variable "project" {
@@ -84,10 +91,117 @@ resource "aws_dynamodb_table" "tf_lock" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# IAM — GitHub Actions role (OIDC): Terraform apply of the main stack plus the
+# deploy steps in .github/workflows/deploy-terraform.yml.
+#
+# Lives here, not in the main stack, so CI can never rewrite its own trust
+# policy or permissions — only a local bootstrap apply can. That's also why
+# the policy names main-stack resources by ARN pattern rather than by
+# reference. The OIDC provider itself is an account-wide singleton owned by
+# jyjulianwong/Infrastructure-GitHub's bootstrap.
+# ---------------------------------------------------------------------------
+
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "github_actions_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # Pushes to main (apply) and pull requests (plan) only.
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${var.github_repository}:ref:refs/heads/main",
+        "repo:${var.github_repository}:pull_request",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions" {
+  name               = "${local.scoped_prefix}-github-actions-role"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_trust.json
+}
+
+data "aws_iam_policy_document" "github_actions" {
+  statement {
+    sid    = "TerraformState"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      "arn:aws:s3:::${local.global_prefix}-terraform-state",
+      "arn:aws:s3:::${local.global_prefix}-terraform-state/*",
+    ]
+  }
+
+  statement {
+    sid    = "TerraformLock"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+    ]
+    resources = ["arn:aws:dynamodb:${var.aws_region}:*:table/${local.scoped_prefix}-terraform-lock"]
+  }
+
+  statement {
+    sid       = "TerraformApply"
+    effect    = "Allow"
+    actions   = ["s3:*", "iam:*"]
+    resources = ["*"]
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestedRegion"
+      values   = [var.aws_region]
+    }
+  }
+
+  # IAM is a global service — no aws:RequestedRegion condition applies.
+  statement {
+    sid       = "TerraformApplyIAM"
+    effect    = "Allow"
+    actions   = ["iam:*"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions" {
+  name   = "${local.scoped_prefix}-github-actions-role-policy"
+  role   = aws_iam_role.github_actions.id
+  policy = data.aws_iam_policy_document.github_actions.json
+}
+
 output "state_bucket_name" {
   value = aws_s3_bucket.tf_state.bucket
 }
 
 output "lock_table_name" {
   value = aws_dynamodb_table.tf_lock.name
+}
+
+output "github_actions_role_arn" {
+  description = "IAM role GitHub Actions assumes via OIDC — stored as GitHub secret AWS_ROLE_ARN by scripts/bootstrap.sh"
+  value       = aws_iam_role.github_actions.arn
 }

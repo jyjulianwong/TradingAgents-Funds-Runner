@@ -37,7 +37,7 @@ runner/
 scripts/
   run.sh                   # docker build + docker run convenience wrapper
 terraform/
-  bootstrap/main.tf        # Run once: creates remote state bucket + DynamoDB lock
+  bootstrap/main.tf        # State bucket, lock table and CI OIDC role (scripts/bootstrap.sh)
   backend.tf               # Remote state config (bucket/table supplied at init time)
   main.tf                  # S3 reports bucket (public-read)
   variables.tf
@@ -48,43 +48,30 @@ terraform/
 
 ## Setup
 
-### 1. Bootstrap Terraform remote state (run once per AWS account)
+### 1. Bootstrap the account
+
+Requires `jyjulianwong/Infrastructure-GitHub`'s bootstrap to have run in the same
+account first — it owns the account-wide GitHub Actions OIDC provider. Then, with
+admin credentials for the target account (e.g. after `aws sso login`) and an
+authenticated `gh` CLI:
 
 ```bash
-cd terraform/bootstrap
-
-terraform init
-
-terraform apply \
-  -var="aws_account_id=<YOUR_ACCOUNT_ID>"
+scripts/bootstrap.sh
 ```
 
-This creates an S3 bucket (`<ACCOUNT_ID>-jyjulianwong-tafr-terraform-state`) and a DynamoDB table (`jyjulianwong-tafr-terraform-lock`) to store Terraform state remotely.
+It shows the plan and asks before applying anything, and is safe to re-run. It
+applies `terraform/bootstrap` — the Terraform state bucket
+(`<ACCOUNT_ID>-jyjulianwong-tafr-terraform-state`), lock table
+(`jyjulianwong-tafr-terraform-lock`), and the IAM role CI assumes through GitHub's
+OIDC provider (trusted for this repo's `main` branch and pull requests only — there
+are no static AWS keys) — then moves its own state into the state bucket and sets
+the `AWS_ACCOUNT_ID` and `AWS_ROLE_ARN` Actions secrets.
 
 ### 2. Deploy the reports bucket
 
-```bash
-cd terraform
-
-terraform init \
-  -backend-config="bucket=<ACCOUNT_ID>-jyjulianwong-tafr-terraform-state" \
-  -backend-config="dynamodb_table=jyjulianwong-tafr-terraform-lock"
-
-terraform apply \
-  -var="aws_account_id=<YOUR_ACCOUNT_ID>"
-```
-
-Note the output values — you will need them in subsequent steps:
-
-- `reports_bucket_name` → set as `AWS_S3_REPORTS_BUCKET_NAME` in `.env`
-- `github_actions_access_key_id` → set as GitHub secret `AWS_ACCESS_KEY_ID`
-- `github_actions_secret_access_key` → set as GitHub secret `AWS_SECRET_ACCESS_KEY` (retrieve with `terraform output -raw github_actions_secret_access_key`)
-
-Also, set the following GitHub secret manually (**Settings → Secrets and variables → Actions**):
-
-- `AWS_ACCOUNT_ID` → your 12-digit AWS account ID (`aws sts get-caller-identity --query Account --output text`)
-
-To use a different AWS region, pass `-var="aws_region=us-east-1"` to both `terraform apply` commands. The default is `eu-west-2`.
+Push to `main` (or re-run the latest `Deploy Infrastructure` workflow): CI applies
+`terraform/`, creating the public-read reports bucket
+(`<ACCOUNT_ID>-jyjulianwong-tafr-reports`).
 
 ### 3. Configure secrets
 
@@ -100,10 +87,12 @@ Open `.env` and fill in at minimum:
 | `TRADINGAGENTS_LLM_PROVIDER` | Provider name, e.g. `openai`, `anthropic`, `google` |
 | `TRADINGAGENTS_DEEP_THINK_LLM` | Model for deep-thinking agents, e.g. `gpt-4o` |
 | `TRADINGAGENTS_QUICK_THINK_LLM` | Model for fast agents, e.g. `gpt-4o-mini` |
-| `AWS_ACCESS_KEY_ID` | AWS credentials for S3 upload |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 upload |
 | `AWS_DEFAULT_REGION` | Must match the region used in Terraform |
-| `AWS_S3_REPORTS_BUCKET_NAME` | The `reports_bucket_name` output from `terraform apply` |
+
+No AWS keys go in `.env`: `scripts/run.sh` passes the container short-lived
+credentials from your active AWS CLI session (`aws sso login` before running), and
+defaults `AWS_S3_REPORTS_BUCKET_NAME` to that account's reports bucket — set it in
+`.env` only to override.
 
 ### 4. Configure the run
 
